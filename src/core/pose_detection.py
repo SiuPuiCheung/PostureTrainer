@@ -1,4 +1,6 @@
 """Pose detection and annotation functions for visualizing analysis results."""
+# Copyright (c) 2025 Siu Pui Cheung
+# Licensed under the MIT License
 
 import cv2
 import numpy as np

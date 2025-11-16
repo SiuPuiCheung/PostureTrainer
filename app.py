@@ -1,4 +1,6 @@
 """Streamlit web application for pose evaluation."""
+# Copyright (c) 2025 Siu Pui Cheung
+# Licensed under the MIT License
 
 import streamlit as st
 import cv2

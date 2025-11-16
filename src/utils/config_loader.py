@@ -1,4 +1,6 @@
 """Configuration loader for posture trainer."""
+# Copyright (c) 2025 Siu Pui Cheung
+# Licensed under the MIT License
 
 import yaml
 import os
