@@ -9,6 +9,7 @@ setup(
     name="posture_trainer",
     version="0.1.0",
     author="Siu Pui Cheung",
+    license="MIT",
     description="AI-powered posture evaluation tool using MediaPipe",
     long_description=long_description,
     long_description_content_type="text/markdown",
