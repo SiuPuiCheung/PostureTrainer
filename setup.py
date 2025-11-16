@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="posture_trainer",
-    version="2.2.1",
+    version="0.1.0",
     author="Siu Pui Cheung",
     description="AI-powered posture evaluation tool using MediaPipe",
     long_description=long_description,
