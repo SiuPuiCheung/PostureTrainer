@@ -1,4 +1,6 @@
 """Visualization utilities for pose detection."""
+# Copyright (c) 2025 Siu Pui Cheung
+# Licensed under the MIT License
 
 import cv2
 import numpy as np

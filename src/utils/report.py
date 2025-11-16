@@ -1,4 +1,6 @@
 """Report generation utilities for pose evaluation."""
+# Copyright (c) 2025 Siu Pui Cheung
+# Licensed under the MIT License
 
 import os
 import numpy as np

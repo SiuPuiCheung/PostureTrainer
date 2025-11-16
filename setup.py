@@ -1,4 +1,6 @@
 """Setup script for posture_trainer package."""
+# Copyright (c) 2025 Siu Pui Cheung
+# Licensed under the MIT License
 
 from setuptools import setup, find_packages
 
@@ -9,10 +11,11 @@ setup(
     name="posture_trainer",
     version="0.1.0",
     author="Siu Pui Cheung",
+    license="MIT",
     description="AI-powered posture evaluation tool using MediaPipe",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/posture_trainer",
+    url="https://github.com/SiuPuiCheung/PostureTrainer",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     classifiers=[

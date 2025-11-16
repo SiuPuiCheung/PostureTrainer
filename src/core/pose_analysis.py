@@ -1,4 +1,6 @@
 """Pose analysis functions for different posture evaluation scenarios."""
+# Copyright (c) 2025 Siu Pui Cheung
+# Licensed under the MIT License
 
 from typing import Tuple, List
 import mediapipe as mp

@@ -1,4 +1,6 @@
 """Utility functions for pose estimation calculations."""
+# Copyright (c) 2025 Siu Pui Cheung
+# Licensed under the MIT License
 
 import numpy as np
 from typing import Tuple
