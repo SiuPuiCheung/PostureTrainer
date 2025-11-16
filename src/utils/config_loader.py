@@ -1,0 +1,72 @@
+"""Configuration loader for posture trainer."""
+
+import yaml
+import os
+from pathlib import Path
+from typing import Dict, Any
+
+
+class Config:
+    """Configuration management for posture trainer."""
+    
+    def __init__(self, config_path: str = None):
+        """
+        Initialize configuration from YAML file.
+        
+        Args:
+            config_path: Path to configuration YAML file. 
+                        Defaults to config/config.yaml in project root.
+        """
+        if config_path is None:
+            # Default to config/config.yaml relative to project root
+            project_root = Path(__file__).parent.parent.parent
+            config_path = project_root / "config" / "config.yaml"
+        
+        with open(config_path, 'r') as f:
+            self._config = yaml.safe_load(f)
+    
+    @property
+    def model_config(self) -> Dict[str, Any]:
+        """Get model configuration."""
+        return self._config['model']
+    
+    @property
+    def paths(self) -> Dict[str, str]:
+        """Get path configuration."""
+        return self._config['paths']
+    
+    @property
+    def analysis_types(self) -> list:
+        """Get analysis type configurations."""
+        return self._config['analysis']['types']
+    
+    @property
+    def body_labels(self) -> Dict[str, list]:
+        """Get body labels for different analysis types."""
+        return self._config['body_labels']
+    
+    @property
+    def gui_config(self) -> Dict[str, Any]:
+        """Get GUI configuration."""
+        return self._config['gui']
+    
+    @property
+    def report_config(self) -> Dict[str, Any]:
+        """Get report configuration."""
+        return self._config['report']
+    
+    def get_body_labels_by_index(self, index: int) -> list:
+        """
+        Get body labels for a specific analysis type by index.
+        
+        Args:
+            index: Index of the analysis type (0-5).
+        
+        Returns:
+            List of body labels for the specified analysis type.
+        """
+        label_keys = ['front_angle', 'side_angle', 'balance_back', 
+                     'balance_test', 'balance_front', 'balance_side']
+        if 0 <= index < len(label_keys):
+            return self.body_labels[label_keys[index]]
+        return []

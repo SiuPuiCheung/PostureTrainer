@@ -1,0 +1,123 @@
+# Posture Trainer Configuration
+
+# Model confidence thresholds
+model:
+  image:
+    detection_confidence: 0.6
+    tracking_confidence: 0.6
+  video:
+    detection_confidence: 0.9
+    tracking_confidence: 0.9
+
+# Paths
+paths:
+  output_dir: "output"
+  assets_dir: "image"
+  bg_image: "image/bg.png"
+
+# Analysis options
+analysis:
+  types:
+    - id: 1
+      name: "Front Angle"
+      analysis_func: "front_angle_analysis"
+      detection_func: "front_angle_detection"
+      label_index: 0
+    - id: 2
+      name: "Side Angle"
+      analysis_func: "side_angle_analysis"
+      detection_func: "side_angle_detection"
+      label_index: 1
+    - id: 3
+      name: "Balance Back"
+      analysis_func: "balance_back_analysis"
+      detection_func: "balance_back_detection"
+      label_index: 2
+    - id: 4
+      name: "Balance Test"
+      analysis_func: "balance_test_analysis"
+      detection_func: "balance_test_detection"
+      label_index: 3
+    - id: 5
+      name: "Balance Front"
+      analysis_func: "balance_front_analysis"
+      detection_func: "balance_front_detection"
+      label_index: 4
+    - id: 6
+      name: "Balance Side"
+      analysis_func: "balance_side_analysis"
+      detection_func: "balance_side_detection"
+      label_index: 5
+
+# Body joint labels for different analysis types
+body_labels:
+  front_angle:
+    - "Left shoulder"
+    - "Right Shoulder"
+    - "Left Elbow"
+    - "Right Elbow"
+    - "Left Wrist"
+    - "Right Wrist"
+    - "Left Upper Body"
+    - "Right Upper Body"
+    - "Left Knee"
+    - "Right Knee"
+    - "Left Low Limb"
+    - "Right Low Limb"
+    - "Shoulder Midpoint Deviation: L(+), R(-)"
+  
+  side_angle:
+    - "Left Shoulder"
+    - "Right Shoulder"
+    - "Left Elbow"
+    - "Right Elbow"
+    - "Left Upper Body"
+    - "Right Upper Body"
+    - "Left Knee"
+    - "Right Knee"
+    - "Left Low Limb"
+    - "Right Low Limb"
+    - "Left Neck"
+    - "Right Neck"
+    - "Left Hip"
+    - "Right Hip"
+    - "Left Ankle Flexion"
+    - "Right Ankle Flexion"
+  
+  balance_back:
+    - "Shoulder Angle Difference: L(+), R(-)"
+    - "Elbow Angle Difference: L(+), R(-)"
+    - "Hip Angle Difference: L(+), R(-)"
+  
+  balance_test:
+    - "Shoulder Midpoint Deviation: L(+), R(-)"
+    - "Central Vertical Midpoint: L(+), R(-)"
+  
+  balance_front:
+    - "Ear Angle Difference: L(+), R(-)"
+    - "Shoulder Angle Difference: L(+), R(-)"
+    - "Hip Angle Difference: L(+), R(-)"
+    - "Knee Angle Difference: L(+), R(-)"
+    - "Ankle Angle Difference: L(+), R(-)"
+  
+  balance_side:
+    - "Left Shoulder Angle"
+    - "Left Low Limb Angle"
+
+# GUI settings
+gui:
+  title: "Posture Trainer"
+  version: "v2.2.1"
+  button_width: 120
+  button_height: 120
+  space_x: 20
+  space_y: 10
+  num_columns: 3
+
+# Report settings
+report:
+  figure_width: 18
+  rows_per_joint: 1
+  base_height_per_row: 4
+  title: "Analysis Report"
+  title_fontsize: 20
