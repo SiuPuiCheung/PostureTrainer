@@ -1,17 +1,20 @@
 # Posture Trainer
 
-AI-powered posture evaluation tool using MediaPipe for real-time pose estimation and analysis.
+AI-powered posture evaluation tool using dual pose detection models (MediaPipe and YOLOv11) for real-time pose estimation and analysis.
 
 ## Features
 
+- **Dual Model Support**: Choose between MediaPipe (CPU-optimized) or YOLOv11 (GPU-optimized)
 - **Modern Web Interface**: Streamlit-based UI accessible from any browser
 - **6 Analysis Modes**: Front angle, side angle, balance (back/test/front/side)
 - **Multiple Input Sources**: Live camera, video files, or static images
-- **Real-time Processing**: MediaPipe pose detection with configurable confidence
+- **Real-time Processing**: Configurable pose detection with adjustable confidence
+- **GPU Acceleration**: Optional CUDA support for faster processing
 - **Interactive Metrics**: Live angle measurements with min/max/average displays
 - **Automated Reports**: PDF reports with angle plots and statistics
 - **Easy Downloads**: One-click download for annotated results and reports
 - **Configuration-Driven**: All settings externalized to YAML
+- **Docker Support**: Containerized deployment with CPU and GPU variants
 - **Modular Architecture**: Clean separation of concerns for maintainability
 
 ## Project Structure
@@ -86,6 +89,24 @@ python main.py
 
 ## Usage
 
+### Model Selection
+
+The application supports two pose detection models:
+
+1. **MediaPipe** (Default)
+   - Fast and efficient on CPU
+   - No additional downloads required
+   - Good for real-time webcam processing
+   - Lower accuracy but faster inference
+
+2. **YOLOv11-pose**
+   - State-of-the-art accuracy
+   - GPU-accelerated (CUDA support)
+   - Automatic model download (~6-50MB)
+   - Better for batch processing
+
+Select your preferred model in the sidebar under "Pose Detection Model".
+
 ### Streamlit Web Interface (Recommended)
 
 ```powershell
@@ -94,17 +115,85 @@ streamlit run app.py
 
 **Features:**
 - 🎨 Modern web UI accessible from any browser
+- 🤖 Dual model support (MediaPipe / YOLOv11)
+- 🚀 GPU acceleration toggle
 - 📊 Real-time angle metrics with min/max/average
 - 📥 One-click downloads for results and PDF reports
 - 🎯 Three input modes: Image upload, Video file, or Webcam
 - ⚙️ Adjustable confidence slider in sidebar
 
 **Workflow:**
-1. **Sidebar**: Select analysis type and input source
-2. **Upload/Capture**: Upload file or start webcam
-3. **Process**: Click button to analyze
-4. **View Results**: See annotated output with live metrics
-5. **Download**: Get annotated media and PDF report
+1. **Sidebar**: Select analysis type, pose model, and input source
+2. **Model Settings**: Choose between CPU or GPU acceleration
+3. **Upload/Capture**: Upload file or start webcam
+4. **Process**: Click button to analyze
+5. **View Results**: See annotated output with live metrics
+6. **Download**: Get annotated media and PDF report
+
+### Docker Deployment
+
+Docker provides an isolated, reproducible environment for running Posture Trainer.
+
+#### CPU-only Deployment
+
+```bash
+# Build and run CPU version
+docker-compose --profile cpu up -d
+
+# Or build manually
+docker build --target cpu -t posture-trainer:cpu .
+docker run -p 8501:8501 -v ./output:/app/output posture-trainer:cpu
+```
+
+#### GPU-accelerated Deployment
+
+**Prerequisites:**
+- NVIDIA GPU with CUDA support
+- [nvidia-docker](https://github.com/NVIDIA/nvidia-docker) installed
+
+```bash
+# Build and run GPU version
+docker-compose --profile gpu up -d
+
+# Or build manually
+docker build --target gpu -t posture-trainer:gpu .
+docker run --gpus all -p 8501:8501 -v ./output:/app/output posture-trainer:gpu
+```
+
+#### Access the Application
+
+Once running, open your browser to:
+```
+http://localhost:8501
+```
+
+#### Stop the Container
+
+```bash
+# Using docker-compose
+docker-compose --profile cpu down    # or --profile gpu
+
+# Using docker directly
+docker stop posture-trainer-cpu      # or posture-trainer-gpu
+```
+
+#### Volume Mounts
+
+The Docker setup automatically mounts:
+- `./output` - For saving processed results and reports
+- `./config` - For configuration file access
+
+#### Environment Variables
+
+Customize behavior with environment variables:
+
+```bash
+docker run -p 8501:8501 \
+  -e STREAMLIT_SERVER_PORT=8501 \
+  -e STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
+  -v ./output:/app/output \
+  posture-trainer:cpu
+```
 
 ### Desktop Application (Legacy)
 
@@ -122,7 +211,10 @@ python main.py
 ### Configuration
 
 Edit `config/config.yaml` to customize:
+- Default model type (MediaPipe or YOLOv11)
 - Model confidence thresholds
+- GPU acceleration settings
+- YOLOv11 model size
 - Output paths
 - GUI settings
 - Body joint labels
@@ -131,9 +223,20 @@ Edit `config/config.yaml` to customize:
 Example configuration:
 ```yaml
 model:
+  # Default model type: 'mediapipe' or 'yolov11'
+  default_type: "mediapipe"
+  
+  # Model confidence thresholds
   video:
     detection_confidence: 0.9
     tracking_confidence: 0.9
+  
+  # GPU acceleration (auto-detected if available)
+  use_gpu: true
+  
+  # YOLOv11 specific settings
+  yolov11:
+    model_size: "n"  # n=nano, s=small, m=medium, l=large, x=xlarge
 
 paths:
   output_dir: "output"
