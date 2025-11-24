@@ -12,7 +12,7 @@ setup(
     version="0.1.0",
     author="Siu Pui Cheung",
     license="MIT",
-    description="AI-powered posture evaluation tool using MediaPipe",
+    description="AI-powered posture evaluation tool using MediaPipe and YOLOv11",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/SiuPuiCheung/PostureTrainer",
@@ -37,6 +37,7 @@ setup(
         "pandas>=2.0.0",
         "matplotlib>=3.7.0",
         "pyyaml>=6.0",
+        "ultralytics>=8.2.0",
     ],
     extras_require={
         "dev": [

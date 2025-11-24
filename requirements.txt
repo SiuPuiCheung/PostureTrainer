@@ -4,6 +4,9 @@ numpy>=1.24.0
 pandas>=2.0.0
 matplotlib>=3.7.0
 
+# Pose estimation backends
+ultralytics>=8.2.0
+
 # Configuration management
 pyyaml>=6.0
 

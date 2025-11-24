@@ -4,9 +4,9 @@
 
 import cv2
 import pandas as pd
-import mediapipe as mp
 import threading
 import tkinter as tk
+from tkinter import messagebox
 from datetime import datetime
 from typing import Tuple
 import numpy as np
@@ -14,6 +14,7 @@ import numpy as np
 from src.utils.config_loader import Config
 from src.data.capture import CaptureManager, setup_output_writer
 from src.utils.report import ReportGenerator
+from src.models import create_pose_estimator, PoseEstimatorError
 
 
 # Global control variables
@@ -23,35 +24,22 @@ joint_angles_df = pd.DataFrame()
 
 
 def process_frame(frame: np.ndarray, 
-                 pose, 
+                 estimator,
                  anal_func, 
-                 detect_func) -> Tuple[np.ndarray, dict]:
+                 detect_func) -> Tuple[np.ndarray, Tuple, bool]:
     """
     Process a single frame to detect pose landmarks, analyze posture, and annotate.
     
     Args:
         frame: Input frame from video or camera.
-        pose: Pose estimation model.
+        estimator: Pose estimation backend.
         anal_func: Function to analyze pose and compute angles.
         detect_func: Function to draw annotations on frame.
     
     Returns:
-        Tuple containing annotated image and angles data dictionary.
+        Tuple containing annotated image, angles data, and detection flag.
     """
-    # Convert frame to RGB
-    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = pose.process(image)
-    
-    if results.pose_landmarks:
-        # Compute angles from pose landmarks
-        angles_data = anal_func(results.pose_landmarks.landmark, mp.solutions.pose)
-        # Annotate frame with results
-        annotated_image = detect_func(cv2.cvtColor(image, cv2.COLOR_RGB2BGR), 
-                                      results, angles_data)
-        return annotated_image, angles_data
-    
-    # No landmarks detected
-    return cv2.cvtColor(image, cv2.COLOR_RGB2BGR), {}
+    return estimator.process(frame, anal_func, detect_func)
 
 
 def show_stop_gui():
@@ -103,7 +91,7 @@ def run_estimation(config: Config):
 
     # Initialize capture manager and get capture settings
     capture_mgr = CaptureManager(config)
-    cap, is_image, _, frame_rate, anal_func, detect_func, analysis_choice = \
+    cap, is_image, _, frame_rate, anal_func, detect_func, analysis_choice, pose_model_id, device_id = \
         capture_mgr.initialize_capture()
     
     if not cap:
@@ -124,30 +112,37 @@ def run_estimation(config: Config):
     t_conf = model_conf['image']['tracking_confidence'] if is_image else \
              model_conf['video']['tracking_confidence']
 
-    # Initialize Mediapipe pose detection
-    with mp.solutions.pose.Pose(min_detection_confidence=d_conf,
-                                min_tracking_confidence=t_conf) as pose:
-        while cap.isOpened() and not stop_evaluation:
-            ret, frame = cap.read()
-            if not ret:
-                break
+    try:
+        with create_pose_estimator(
+            pose_model_id,
+            config,
+            detection_conf=d_conf,
+            tracking_conf=t_conf,
+            device=device_id,
+        ) as estimator:
+            while cap.isOpened() and not stop_evaluation:
+                ret, frame = cap.read()
+                if not ret:
+                    break
 
-            # Process frame for pose detection and annotation
-            processed_frame, angles_data = process_frame(frame, pose, anal_func, detect_func)
-            joint_angles_df = pd.concat([joint_angles_df, pd.DataFrame([angles_data])], 
-                                       ignore_index=True)
-            
-            cv2.imshow('Mediapipe Feed', processed_frame)
-            
-            # Save processed frame/image
-            if is_image:
-                cv2.imwrite(out, processed_frame)
-                break
-            elif out:
-                out.write(processed_frame)
-            
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+                processed_frame, angles_data, detected = process_frame(frame, estimator, anal_func, detect_func)
+
+                if detected:
+                    joint_angles_df = pd.concat([joint_angles_df, pd.DataFrame([angles_data])],
+                                                ignore_index=True)
+
+                cv2.imshow('Pose Estimation Feed', processed_frame)
+
+                if is_image:
+                    cv2.imwrite(out, processed_frame)
+                    break
+                elif out:
+                    out.write(processed_frame)
+
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+    except PoseEstimatorError as exc:
+        messagebox.showerror("Pose Estimator Error", str(exc))
 
     # Cleanup resources
     cap.release()

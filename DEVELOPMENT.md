@@ -69,6 +69,21 @@ python main.py
 python main.py
 ```
 
+### Run in Docker
+
+```powershell
+# Build image
+docker build -t posture-trainer .
+
+# Launch container (CPU)
+docker run --rm -p 8501:8501 -v ${PWD}/output:/app/output posture-trainer
+
+# Launch with GPU acceleration (requires NVIDIA runtime)
+docker run --rm -p 8501:8501 --gpus all -v ${PWD}/output:/app/output posture-trainer
+```
+
+The container caches Ultralytics pose weights under `/app/models`; mount this directory if you need persistence between runs.
+
 ## Development Workflow
 
 ### 1. Code Style

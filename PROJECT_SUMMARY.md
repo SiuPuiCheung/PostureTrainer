@@ -16,6 +16,7 @@ posture_trainer/
 │   │   └── pose_detection.py      # 6 detection functions
 │   ├── data/
 │   │   └── capture.py             # Input capture management
+│   ├── models/                    # Pose estimator backends (MediaPipe / YOLO)
 │   └── utils/
 │       ├── config_loader.py       # Configuration loader
 │       ├── geometry.py            # Geometric calculations
@@ -49,6 +50,7 @@ posture_trainer/
   - `pose_analysis.py`: Pure analysis logic (6 functions)
   - `pose_detection.py`: Visualization/annotation logic (6 functions)
   - `capture.py`: Input handling and GUI
+  - `models/pose_estimators.py`: MediaPipe and YOLOv11 backends with factory
   - `geometry.py`: Reusable geometric utilities
   - `visualization.py`: Reusable drawing functions
   - `report.py`: Report generation logic
@@ -106,10 +108,9 @@ python main.py
 2. **CI/CD**: Add GitHub Actions workflow for automated testing
 3. **Logging**: Add structured logging with different levels
 4. **Monitoring**: Add performance metrics collection
-5. **Docker**: Create Dockerfile for containerization
-6. **API**: Wrap in FastAPI for web service deployment
-7. **Model Versioning**: Track MediaPipe model versions
-8. **Data Versioning**: Version control for test data (DVC)
+5. **API**: Wrap in FastAPI for web service deployment
+6. **Model Versioning**: Track pose backend versions
+7. **Data Versioning**: Version control for test data (DVC)
 
 ## 🔧 Adding New Analysis
 
