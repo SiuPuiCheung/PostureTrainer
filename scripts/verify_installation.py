@@ -13,6 +13,7 @@ def check_imports():
         ('pandas', 'pandas'),
         ('matplotlib', 'matplotlib'),
         ('yaml', 'pyyaml'),
+        ('ultralytics', 'ultralytics'),
     ]
     
     missing = []
@@ -49,6 +50,7 @@ def check_project_structure():
         'src/utils/visualization.py',
         'src/utils/report.py',
         'src/data/capture.py',
+        'src/models/pose_estimators.py',
         'config/config.yaml',
         'main.py',
     ]

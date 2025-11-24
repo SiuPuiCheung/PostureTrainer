@@ -1,13 +1,14 @@
 # Posture Trainer
 
-AI-powered posture evaluation tool using MediaPipe for real-time pose estimation and analysis.
+AI-powered posture evaluation tool using MediaPipe or YOLOv11 for real-time pose estimation and analysis.
 
 ## Features
 
 - **Modern Web Interface**: Streamlit-based UI accessible from any browser
 - **6 Analysis Modes**: Front angle, side angle, balance (back/test/front/side)
 - **Multiple Input Sources**: Live camera, video files, or static images
-- **Real-time Processing**: MediaPipe pose detection with configurable confidence
+- **Dual Pose Backends**: Switch between MediaPipe (CPU) and YOLOv11 (CPU/GPU) at runtime
+- **Real-time Processing**: Configurable confidence threshold per model
 - **Interactive Metrics**: Live angle measurements with min/max/average displays
 - **Automated Reports**: PDF reports with angle plots and statistics
 - **Easy Downloads**: One-click download for annotated results and reports
@@ -84,6 +85,23 @@ streamlit run app.py
 python main.py
 ```
 
+## Docker
+
+Build and run the Streamlit application inside a container:
+
+```powershell
+# Build image
+docker build -t posture-trainer .
+
+# Run (CPU)
+docker run --rm -p 8501:8501 -v ${PWD}/output:/app/output posture-trainer
+
+# Run with NVIDIA GPU (requires nvidia-container-toolkit)
+docker run --rm -p 8501:8501 --gpus all -v ${PWD}/output:/app/output posture-trainer
+```
+
+Model weights downloaded by Ultralytics are cached under `models/` (mounted automatically inside the container). Map the folder to persist weights between runs and to avoid repeated downloads.
+
 ## Usage
 
 ### Streamlit Web Interface (Recommended)
@@ -97,10 +115,11 @@ streamlit run app.py
 - 📊 Real-time angle metrics with min/max/average
 - 📥 One-click downloads for results and PDF reports
 - 🎯 Three input modes: Image upload, Video file, or Webcam
-- ⚙️ Adjustable confidence slider in sidebar
+- 🧠 Toggle between MediaPipe and YOLOv11 backends
+- ⚙️ Adjustable confidence slider and compute device selection
 
 **Workflow:**
-1. **Sidebar**: Select analysis type and input source
+1. **Sidebar**: Select analysis type, pose model, compute device, and input source
 2. **Upload/Capture**: Upload file or start webcam
 3. **Process**: Click button to analyze
 4. **View Results**: See annotated output with live metrics
@@ -209,10 +228,10 @@ mypy src/
    ↓ (cap, is_image, frame_rate, anal_func, detect_func, analysis_choice)
 2. setup_output_writer()
    ↓ (out)
-3. Mediapipe Pose Context
+3. Pose Estimator Context (`create_pose_estimator`)
    ↓
 4. Frame Loop:
-   - process_frame(frame, pose, anal_func, detect_func)
+   - process_frame(frame, estimator, anal_func, detect_func)
      → anal_func(landmarks) → angles
      → detect_func(image, results, angles) → annotated_image
    - Append angles to DataFrame
@@ -233,7 +252,7 @@ mypy src/
 ## Dependencies
 
 - `opencv-python`: Video/image processing
-- `mediapipe`: Pose estimation
+- `mediapipe` / `ultralytics`: Pose estimation backends (MediaPipe & YOLOv11)
 - `numpy`, `pandas`: Data manipulation
 - `matplotlib`: Plotting and reports
 - `pyyaml`: Configuration management

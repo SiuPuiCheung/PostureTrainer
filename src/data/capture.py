@@ -5,7 +5,7 @@ import os
 import sys
 import tkinter as tk
 from tkinter import filedialog, PhotoImage
-from typing import Tuple, Optional, Callable
+from typing import Tuple, Optional, Dict, Any
 from ..utils.config_loader import Config
 
 
@@ -22,7 +22,7 @@ class CaptureManager:
         self.config = config
         self.gui_config = config.gui_config
     
-    def show_gui(self, options: dict) -> Optional[int]:
+    def show_gui(self, options: Dict[str, Any]) -> Optional[Any]:
         """
         Create a graphical user interface dialog with buttons based on provided options.
         
@@ -104,6 +104,8 @@ class CaptureManager:
             - anal_func: Analysis function
             - detect_func: Detection function
             - analysis_choice: Analysis choice index
+            - pose_model_id: Selected pose model identifier
+            - device_id: Selected compute device identifier
         """
         # Initialize hidden tkinter window
         root = tk.Tk()
@@ -114,9 +116,44 @@ class CaptureManager:
         a_opts = {atype['name']: atype['id'] for atype in analysis_types}
         i_opts = {"Image": 1, "Video file": 2, "Camera": 3}
 
+        pose_options_cfg = self.config.get_pose_model_options()
+        if pose_options_cfg:
+            m_opts = {
+                option.get('name', option['id']): option['id']
+                for option in pose_options_cfg if 'id' in option
+            }
+        else:
+            m_opts = {"MediaPipe Pose": "mediapipe"}
+
         # Get user selections
         a_choice = self.show_gui(a_opts)
         if not a_choice:
+            sys.exit(0)
+
+        pose_choice = self.show_gui(m_opts)
+        if not pose_choice:
+            sys.exit(0)
+
+        selected_model_cfg = next(
+            (option for option in pose_options_cfg if option.get('id') == pose_choice),
+            {'devices': ['cpu'], 'id': 'mediapipe'}
+        ) if pose_options_cfg else {'devices': ['cpu'], 'id': 'mediapipe'}
+
+        device_buttons: Dict[str, str]
+        devices_cfg = [str(dev).lower() for dev in selected_model_cfg.get('devices', [])]
+        if 'gpu' in devices_cfg:
+            device_buttons = {
+                "Auto (CPU/GPU)": "auto",
+                "GPU (CUDA)": "gpu",
+                "CPU only": "cpu",
+            }
+        else:
+            device_buttons = {
+                "CPU only": "cpu",
+            }
+
+        device_choice = self.show_gui(device_buttons)
+        if not device_choice:
             sys.exit(0)
         
         # Get analysis and detection functions
@@ -161,7 +198,17 @@ class CaptureManager:
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 9999)
         frame_rate = cap.get(cv2.CAP_PROP_FPS) if cap.isOpened() else 0
 
-        return cap, i_choice == 1, path, frame_rate, anal_func, detect_func, a_choice - 1
+        return (
+            cap,
+            i_choice == 1,
+            path,
+            frame_rate,
+            anal_func,
+            detect_func,
+            a_choice - 1,
+            pose_choice,
+            device_choice,
+        )
 
 
 def setup_output_writer(cap, is_image: bool, timestamp: str, output_dir: str = "output"):

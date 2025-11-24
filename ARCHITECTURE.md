@@ -19,7 +19,7 @@
 │  │  app.py (Streamlit):                                     │  │
 │  │  1. Display UI with sidebar controls                     │  │
 │  │  2. Handle file uploads / webcam capture                 │  │
-│  │  3. Process frames with MediaPipe                        │  │
+│  │  3. Process frames with selected pose model              │  │
 │  │  4. Display real-time metrics                            │  │
 │  │  5. Generate & offer downloads                           │  │
 │  │                                                           │  │
@@ -27,7 +27,7 @@
 │  │  1. Initialize CaptureManager                            │  │
 │  │  2. Setup Output Writer                                  │  │
 │  │  3. Start Control GUI Thread                             │  │
-│  │  4. Initialize MediaPipe Pose                            │  │
+│  │  4. Initialize selected pose estimator                   │  │
 │  │  5. Frame Processing Loop                                │  │
 │  │  6. Generate Report                                      │  │
 │  └──────────────────────────────────────────────────────────┘  │
@@ -42,8 +42,8 @@
 │  └──────────────┘  └──────────────┘  └──────────────┘        │
 │         ↓                  ↓                  ↓                │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
-│  │ cv2.VideoCapture│ │ MediaPipe   │  │  Annotated   │        │
-│  │    / Image    │  │  Landmarks   │  │    Image     │        │
+│  │ cv2.VideoCapture│ │ Pose Model   │  │  Annotated   │        │
+│  │    / Image    │  │ (MediaPipe/YOLO)│  Image     │        │
 │  └──────────────┘  └──────────────┘  └──────────────┘        │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
@@ -134,7 +134,7 @@ Frame Capture (cv2.VideoCapture)
   ↓
 RGB Conversion
   ↓
-MediaPipe Pose Detection
+Pose Estimator (MediaPipe or YOLOv11)
   ↓
 Landmark Extraction (33 points)
   ↓
@@ -224,7 +224,7 @@ Single Thread (Streamlit event loop)
 ```
 Main Thread
   ├─ Video Capture Loop
-  ├─ Frame Processing (MediaPipe)
+  ├─ Frame Processing (Pose Estimator)
   ├─ Display Window (cv2.imshow)
   └─ File Writing
 
