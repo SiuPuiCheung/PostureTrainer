@@ -1,13 +1,24 @@
 # Posture Trainer Configuration
 
-# Model confidence thresholds
+# Model configuration
 model:
+  # Default model type: 'mediapipe' or 'yolov11'
+  default_type: "mediapipe"
+  
+  # Model confidence thresholds
   image:
     detection_confidence: 0.6
     tracking_confidence: 0.6
   video:
     detection_confidence: 0.9
     tracking_confidence: 0.9
+  
+  # GPU acceleration (auto-detected if available)
+  use_gpu: true
+  
+  # YOLOv11 specific settings
+  yolov11:
+    model_size: "n"  # n=nano, s=small, m=medium, l=large, x=xlarge
 
 # Paths
 paths:

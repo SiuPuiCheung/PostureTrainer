@@ -15,6 +15,7 @@ import os
 from src.utils.config_loader import Config
 from src.utils.report import ReportGenerator
 from src.core import pose_analysis, pose_detection
+from src.core.model_factory import create_pose_model, get_available_models, check_gpu_available
 
 
 # Page configuration
@@ -63,6 +64,12 @@ def initialize_session_state():
         st.session_state.joint_angles_df = None
     if 'analysis_choice' not in st.session_state:
         st.session_state.analysis_choice = 0
+    if 'model_type' not in st.session_state:
+        st.session_state.model_type = "mediapipe"
+    if 'use_gpu' not in st.session_state:
+        st.session_state.use_gpu = check_gpu_available()
+    if 'available_models' not in st.session_state:
+        st.session_state.available_models = get_available_models()
 
 
 def get_analysis_functions(analysis_id):
@@ -78,20 +85,51 @@ def get_analysis_functions(analysis_id):
     return funcs_map.get(analysis_id, (None, None))
 
 
-def process_frame(frame, pose, anal_func, detect_func):
+def process_frame(frame, pose, anal_func, detect_func, model_type="mediapipe"):
     """Process a single frame for pose detection."""
     image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = pose.process(image)
     
-    if results.pose_landmarks:
-        angles_data = anal_func(results.pose_landmarks.landmark, mp.solutions.pose)
-        annotated_image = detect_func(cv2.cvtColor(image, cv2.COLOR_RGB2BGR), results, angles_data)
-        return annotated_image, angles_data, True
+    if model_type == "mediapipe":
+        # MediaPipe processing (backward compatible)
+        results = pose.process(image)
+        
+        if results.pose_landmarks:
+            angles_data = anal_func(results.pose_landmarks.landmark, mp.solutions.pose)
+            annotated_image = detect_func(cv2.cvtColor(image, cv2.COLOR_RGB2BGR), results, angles_data)
+            return annotated_image, angles_data, True
+    else:
+        # YOLOv11 or other model processing
+        # Process with model
+        pose_results = pose.process(cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+        
+        if pose_results.pose_landmarks:
+            # Create a mock MediaPipe results object for compatibility
+            class MockResults:
+                def __init__(self, landmarks):
+                    self.pose_landmarks = landmarks
+            
+            # Convert landmarks to MediaPipe format for analysis functions
+            class MockLandmark:
+                def __init__(self, landmark):
+                    self.x = landmark.x
+                    self.y = landmark.y
+                    self.z = landmark.z
+                    self.visibility = landmark.visibility
+            
+            class MockLandmarks:
+                def __init__(self, landmarks):
+                    self.landmark = [MockLandmark(lm) for lm in landmarks]
+            
+            mock_results = MockResults(MockLandmarks(pose_results.pose_landmarks))
+            
+            angles_data = anal_func(mock_results.pose_landmarks.landmark, mp.solutions.pose)
+            annotated_image = detect_func(cv2.cvtColor(image, cv2.COLOR_RGB2BGR), mock_results, angles_data)
+            return annotated_image, angles_data, True
     
     return cv2.cvtColor(image, cv2.COLOR_RGB2BGR), {}, False
 
 
-def process_image(uploaded_file, analysis_id, confidence):
+def process_image(uploaded_file, analysis_id, confidence, model_type="mediapipe", use_gpu=True):
     """Process uploaded image."""
     config = st.session_state.config
     anal_func, detect_func = get_analysis_functions(analysis_id)
@@ -104,21 +142,27 @@ def process_image(uploaded_file, analysis_id, confidence):
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     frame = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     
-    # Process with MediaPipe
-    with mp.solutions.pose.Pose(
-        min_detection_confidence=confidence,
-        min_tracking_confidence=confidence
-    ) as pose:
-        annotated_image, angles_data, detected = process_frame(frame, pose, anal_func, detect_func)
-        
-        if detected:
-            joint_angles_df = pd.DataFrame([angles_data])
-            return annotated_image, joint_angles_df, True
-        else:
-            return annotated_image, None, False
+    # Create pose model
+    if model_type == "mediapipe":
+        # Process with MediaPipe (backward compatible)
+        with mp.solutions.pose.Pose(
+            min_detection_confidence=confidence,
+            min_tracking_confidence=confidence
+        ) as pose:
+            annotated_image, angles_data, detected = process_frame(frame, pose, anal_func, detect_func, model_type)
+    else:
+        # Process with selected model (YOLOv11, etc.)
+        with create_pose_model(model_type, confidence=confidence, use_gpu=use_gpu) as pose:
+            annotated_image, angles_data, detected = process_frame(frame, pose, anal_func, detect_func, model_type)
+    
+    if detected:
+        joint_angles_df = pd.DataFrame([angles_data])
+        return annotated_image, joint_angles_df, True
+    else:
+        return annotated_image, None, False
 
 
-def process_video(uploaded_file, analysis_id, confidence, progress_bar, status_text):
+def process_video(uploaded_file, analysis_id, confidence, progress_bar, status_text, model_type="mediapipe", use_gpu=True):
     """Process uploaded video."""
     config = st.session_state.config
     anal_func, detect_func = get_analysis_functions(analysis_id)
@@ -157,16 +201,22 @@ def process_video(uploaded_file, analysis_id, confidence, progress_bar, status_t
     joint_angles_list = []
     frame_count = 0
     
-    with mp.solutions.pose.Pose(
-        min_detection_confidence=confidence,
-        min_tracking_confidence=confidence
-    ) as pose:
+    # Create pose model
+    if model_type == "mediapipe":
+        pose_context = mp.solutions.pose.Pose(
+            min_detection_confidence=confidence,
+            min_tracking_confidence=confidence
+        )
+    else:
+        pose_context = create_pose_model(model_type, confidence=confidence, use_gpu=use_gpu)
+    
+    with pose_context as pose:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
             
-            annotated_image, angles_data, detected = process_frame(frame, pose, anal_func, detect_func)
+            annotated_image, angles_data, detected = process_frame(frame, pose, anal_func, detect_func, model_type)
             out.write(annotated_image)
             
             if detected:
@@ -185,7 +235,7 @@ def process_video(uploaded_file, analysis_id, confidence, progress_bar, status_t
     return output_path, joint_angles_df, frame_rate, True
 
 
-def process_webcam(analysis_id, confidence, stop_button_placeholder):
+def process_webcam(analysis_id, confidence, stop_button_placeholder, model_type="mediapipe", use_gpu=True):
     """Process webcam feed."""
     anal_func, detect_func = get_analysis_functions(analysis_id)
     
@@ -208,17 +258,23 @@ def process_webcam(analysis_id, confidence, stop_button_placeholder):
     
     stop_button = stop_button_placeholder.button("⏹ Stop Recording", key="stop_webcam")
     
-    with mp.solutions.pose.Pose(
-        min_detection_confidence=confidence,
-        min_tracking_confidence=confidence
-    ) as pose:
+    # Create pose model
+    if model_type == "mediapipe":
+        pose_context = mp.solutions.pose.Pose(
+            min_detection_confidence=confidence,
+            min_tracking_confidence=confidence
+        )
+    else:
+        pose_context = create_pose_model(model_type, confidence=confidence, use_gpu=use_gpu)
+    
+    with pose_context as pose:
         frame_count = 0
         while cap.isOpened() and not stop_button:
             ret, frame = cap.read()
             if not ret:
                 break
             
-            annotated_image, angles_data, detected = process_frame(frame, pose, anal_func, detect_func)
+            annotated_image, angles_data, detected = process_frame(frame, pose, anal_func, detect_func, model_type)
             
             # Display frame
             stframe.image(annotated_image, channels="BGR", use_column_width=True)
@@ -314,8 +370,48 @@ def main():
             help="Select your input source"
         )
         
+        # Model selection
+        st.subheader("3️⃣ Pose Detection Model")
+        
+        available_models = st.session_state.available_models
+        model_display_names = {
+            "mediapipe": "MediaPipe (Fast, CPU-optimized)",
+            "yolov11": "YOLOv11 (Accurate, GPU-optimized)"
+        }
+        
+        model_options = [model_display_names.get(m, m) for m in available_models]
+        selected_model_display = st.selectbox(
+            "Choose detection model",
+            model_options,
+            help="MediaPipe is faster on CPU, YOLOv11 is more accurate with GPU"
+        )
+        
+        # Map back to model type
+        model_type = next(m for m in available_models if model_display_names.get(m, m) == selected_model_display)
+        st.session_state.model_type = model_type
+        
+        # GPU toggle
+        gpu_available = check_gpu_available()
+        if gpu_available:
+            st.session_state.use_gpu = st.checkbox(
+                "🚀 Use GPU Acceleration",
+                value=st.session_state.use_gpu,
+                help="Enable GPU acceleration for faster processing (CUDA required)"
+            )
+            if st.session_state.use_gpu:
+                st.success("✓ GPU acceleration enabled")
+            else:
+                st.info("ℹ️ Using CPU processing")
+        else:
+            st.session_state.use_gpu = False
+            st.warning("⚠️ GPU not available, using CPU")
+        
+        # Model info
+        if model_type == "yolov11":
+            st.caption("🔄 YOLOv11 model will be downloaded automatically on first use (~6-50MB depending on size)")
+        
         # Model confidence
-        st.subheader("3️⃣ Model Settings")
+        st.subheader("4️⃣ Detection Settings")
         confidence = st.slider(
             "Detection Confidence",
             min_value=0.1,
@@ -330,8 +426,10 @@ def main():
         st.markdown("""
         1. Select analysis type
         2. Choose input source
-        3. Upload/start capture
-        4. View results & download report
+        3. Select pose detection model
+        4. Adjust detection settings
+        5. Upload/start capture
+        6. View results & download report
         """)
     
     # Main content
@@ -355,7 +453,8 @@ def main():
                 st.subheader("Analyzed Result")
                 with st.spinner("Analyzing posture..."):
                     annotated_image, joint_angles_df, detected = process_image(
-                        uploaded_file, analysis_id, confidence
+                        uploaded_file, analysis_id, confidence,
+                        st.session_state.model_type, st.session_state.use_gpu
                     )
                 
                 if detected:
@@ -429,7 +528,8 @@ def main():
                 
                 with st.spinner("Processing video..."):
                     output_path, joint_angles_df, frame_rate, detected = process_video(
-                        uploaded_file, analysis_id, confidence, progress_bar, status_text
+                        uploaded_file, analysis_id, confidence, progress_bar, status_text,
+                        st.session_state.model_type, st.session_state.use_gpu
                     )
                 
                 progress_bar.empty()
@@ -491,7 +591,8 @@ def main():
             
             with st.spinner("Recording from webcam..."):
                 joint_angles_df, frame_rate = process_webcam(
-                    analysis_id, confidence, stop_placeholder
+                    analysis_id, confidence, stop_placeholder,
+                    st.session_state.model_type, st.session_state.use_gpu
                 )
             
             if joint_angles_df is not None and not joint_angles_df.empty:
