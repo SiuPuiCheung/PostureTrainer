@@ -9,6 +9,26 @@ model:
     detection_confidence: 0.9
     tracking_confidence: 0.9
 
+# Pose estimation backends
+pose_models:
+  default: "mediapipe"
+  weights_dir: "models"
+  options:
+    - id: "mediapipe"
+      name: "MediaPipe Pose"
+      type: "mediapipe"
+      devices:
+        - "auto"
+        - "cpu"
+    - id: "yolo11"
+      name: "YOLOv11 Pose"
+      type: "yolo"
+      weights: "yolo11n-pose.pt"
+      devices:
+        - "auto"
+        - "cpu"
+        - "gpu"
+
 # Paths
 paths:
   output_dir: "output"

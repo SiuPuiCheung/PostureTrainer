@@ -7,6 +7,9 @@ matplotlib>=3.7.0
 # Configuration management
 pyyaml>=6.0
 
+# Pose backends
+ultralytics>=8.2.0
+
 # Web UI
 streamlit>=1.28.0
 pillow>=10.0.0

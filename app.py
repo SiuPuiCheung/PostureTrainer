@@ -5,7 +5,6 @@
 import streamlit as st
 import cv2
 import pandas as pd
-import mediapipe as mp
 import numpy as np
 from datetime import datetime
 from PIL import Image
@@ -15,6 +14,7 @@ import os
 from src.utils.config_loader import Config
 from src.utils.report import ReportGenerator
 from src.core import pose_analysis, pose_detection
+from src.models import create_pose_model
 
 
 # Page configuration
@@ -63,6 +63,10 @@ def initialize_session_state():
         st.session_state.joint_angles_df = None
     if 'analysis_choice' not in st.session_state:
         st.session_state.analysis_choice = 0
+    if 'pose_model_id' not in st.session_state:
+        st.session_state.pose_model_id = st.session_state.config.get_default_pose_model()
+    if 'pose_device' not in st.session_state:
+        st.session_state.pose_device = st.session_state.config.get_default_pose_device()
 
 
 def get_analysis_functions(analysis_id):
@@ -78,56 +82,72 @@ def get_analysis_functions(analysis_id):
     return funcs_map.get(analysis_id, (None, None))
 
 
-def process_frame(frame, pose, anal_func, detect_func):
-    """Process a single frame for pose detection."""
-    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = pose.process(image)
-    
-    if results.pose_landmarks:
-        angles_data = anal_func(results.pose_landmarks.landmark, mp.solutions.pose)
-        annotated_image = detect_func(cv2.cvtColor(image, cv2.COLOR_RGB2BGR), results, angles_data)
-        return annotated_image, angles_data, True
-    
-    return cv2.cvtColor(image, cv2.COLOR_RGB2BGR), {}, False
-
-
-def process_image(uploaded_file, analysis_id, confidence):
-    """Process uploaded image."""
+def build_pose_model(model_id, detection_confidence, tracking_confidence, device):
+    """Instantiate the requested pose estimation backend."""
     config = st.session_state.config
+    model_option = config.get_pose_model_by_id(model_id)
+    try:
+        return create_pose_model(
+            model_id,
+            detection_conf=detection_confidence,
+            tracking_conf=tracking_confidence,
+            model_config=model_option,
+            device=device,
+            config=config,
+        )
+    except Exception as exc:  # pragma: no cover - surfaced in UI
+        st.error(f"Failed to initialize pose model '{model_id}': {exc}")
+        return None
+
+
+def process_frame(frame, pose_model, anal_func, detect_func):
+    """Process a single frame using the active pose model."""
+    return pose_model.process_frame(frame, anal_func, detect_func)
+
+
+def process_image(uploaded_file, analysis_id, confidence, model_id, device):
+    """Process uploaded image with the selected pose backend."""
     anal_func, detect_func = get_analysis_functions(analysis_id)
-    
+
     if anal_func is None:
         st.error("Invalid analysis type selected")
         return None, None, None
-    
-    # Read image
+
+    pose_model = build_pose_model(model_id, confidence, confidence, device)
+    if pose_model is None:
+        return None, None, None
+
+    uploaded_file.seek(0)
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     frame = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    
-    # Process with MediaPipe
-    with mp.solutions.pose.Pose(
-        min_detection_confidence=confidence,
-        min_tracking_confidence=confidence
-    ) as pose:
-        annotated_image, angles_data, detected = process_frame(frame, pose, anal_func, detect_func)
-        
-        if detected:
-            joint_angles_df = pd.DataFrame([angles_data])
-            return annotated_image, joint_angles_df, True
-        else:
-            return annotated_image, None, False
+
+    if frame is None:
+        st.error("Unable to decode the uploaded image")
+        return None, None, None
+
+    with pose_model as estimator:
+        annotated_image, angles_data, detected = process_frame(frame, estimator, anal_func, detect_func)
+
+    if detected:
+        joint_angles_df = pd.DataFrame([angles_data])
+        return annotated_image, joint_angles_df, True
+    return annotated_image, None, False
 
 
-def process_video(uploaded_file, analysis_id, confidence, progress_bar, status_text):
+def process_video(uploaded_file, analysis_id, confidence, model_id, device, progress_bar, status_text):
     """Process uploaded video."""
-    config = st.session_state.config
     anal_func, detect_func = get_analysis_functions(analysis_id)
     
     if anal_func is None:
         st.error("Invalid analysis type selected")
         return None, None, None, None
     
+    pose_model = build_pose_model(model_id, confidence, confidence, device)
+    if pose_model is None:
+        return None, None, None, None
+
     # Save uploaded file temporarily
+    uploaded_file.seek(0)
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     tfile.write(uploaded_file.read())
     video_path = tfile.name
@@ -156,22 +176,19 @@ def process_video(uploaded_file, analysis_id, confidence, progress_bar, status_t
     
     joint_angles_list = []
     frame_count = 0
-    
-    with mp.solutions.pose.Pose(
-        min_detection_confidence=confidence,
-        min_tracking_confidence=confidence
-    ) as pose:
+
+    with pose_model as estimator:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-            
-            annotated_image, angles_data, detected = process_frame(frame, pose, anal_func, detect_func)
+
+            annotated_image, angles_data, detected = process_frame(frame, estimator, anal_func, detect_func)
             out.write(annotated_image)
-            
+
             if detected:
                 joint_angles_list.append(angles_data)
-            
+
             frame_count += 1
             progress = min(frame_count / total_frames, 1.0)
             progress_bar.progress(progress)
@@ -185,12 +202,16 @@ def process_video(uploaded_file, analysis_id, confidence, progress_bar, status_t
     return output_path, joint_angles_df, frame_rate, True
 
 
-def process_webcam(analysis_id, confidence, stop_button_placeholder):
+def process_webcam(analysis_id, confidence, model_id, device, stop_button_placeholder):
     """Process webcam feed."""
     anal_func, detect_func = get_analysis_functions(analysis_id)
     
     if anal_func is None:
         st.error("Invalid analysis type selected")
+        return None, None
+
+    pose_model = build_pose_model(model_id, confidence, confidence, device)
+    if pose_model is None:
         return None, None
     
     cap = cv2.VideoCapture(0)
@@ -207,25 +228,21 @@ def process_webcam(analysis_id, confidence, stop_button_placeholder):
     joint_angles_list = []
     
     stop_button = stop_button_placeholder.button("⏹ Stop Recording", key="stop_webcam")
-    
-    with mp.solutions.pose.Pose(
-        min_detection_confidence=confidence,
-        min_tracking_confidence=confidence
-    ) as pose:
+
+    with pose_model as estimator:
         frame_count = 0
         while cap.isOpened() and not stop_button:
             ret, frame = cap.read()
             if not ret:
                 break
-            
-            annotated_image, angles_data, detected = process_frame(frame, pose, anal_func, detect_func)
-            
-            # Display frame
+
+            annotated_image, angles_data, detected = process_frame(frame, estimator, anal_func, detect_func)
+
             stframe.image(annotated_image, channels="BGR", use_column_width=True)
-            
+
             if detected:
                 joint_angles_list.append(angles_data)
-            
+
             frame_count += 1
             stop_button = stop_button_placeholder.button("⏹ Stop Recording", key=f"stop_webcam_{frame_count}")
     
@@ -306,8 +323,39 @@ def main():
         
         st.info(analysis_descriptions.get(selected_analysis, ""))
         
+        # Pose backend selection
+        st.subheader("2️⃣ Select Pose Model")
+        pose_options = config.get_pose_model_options()
+        pose_display = [opt.get('name', opt.get('id', '')) for opt in pose_options]
+        default_model_id = st.session_state.pose_model_id
+        default_index = next((idx for idx, opt in enumerate(pose_options) if opt.get('id') == default_model_id), 0)
+
+        selected_pose_name = st.selectbox(
+            "Pose estimation backend",
+            pose_display,
+            index=default_index,
+            help="Choose the model used for pose detection",
+        )
+
+        pose_selection = pose_options[pose_display.index(selected_pose_name)] if pose_options else {}
+        st.session_state.pose_model_id = pose_selection.get('id', 'mediapipe')
+
+        available_devices = pose_selection.get('devices', ['auto'])
+        if st.session_state.pose_device not in available_devices:
+            st.session_state.pose_device = available_devices[0]
+
+        device_labels = [device.upper() for device in available_devices]
+        default_device_index = available_devices.index(st.session_state.pose_device)
+        selected_device_label = st.selectbox(
+            "Compute device",
+            device_labels,
+            index=default_device_index,
+            help="Select inference device (GPU requires compatible hardware)",
+        )
+        st.session_state.pose_device = available_devices[device_labels.index(selected_device_label)]
+
         # Input source selection
-        st.subheader("2️⃣ Select Input Source")
+        st.subheader("3️⃣ Select Input Source")
         input_source = st.radio(
             "Choose input type",
             ["📷 Image", "🎥 Video File", "📹 Webcam"],
@@ -315,7 +363,7 @@ def main():
         )
         
         # Model confidence
-        st.subheader("3️⃣ Model Settings")
+        st.subheader("4️⃣ Model Settings")
         confidence = st.slider(
             "Detection Confidence",
             min_value=0.1,
@@ -348,6 +396,7 @@ def main():
             
             with col1:
                 st.subheader("Original Image")
+                uploaded_file.seek(0)
                 image = Image.open(uploaded_file)
                 st.image(image, use_column_width=True)
             
@@ -355,7 +404,11 @@ def main():
                 st.subheader("Analyzed Result")
                 with st.spinner("Analyzing posture..."):
                     annotated_image, joint_angles_df, detected = process_image(
-                        uploaded_file, analysis_id, confidence
+                        uploaded_file,
+                        analysis_id,
+                        confidence,
+                        st.session_state.pose_model_id,
+                        st.session_state.pose_device,
                     )
                 
                 if detected:
@@ -421,15 +474,18 @@ def main():
             st.video(uploaded_file)
             
             if st.button("🚀 Start Analysis", key="process_video"):
-                # Reset file pointer to beginning for processing
-                uploaded_file.seek(0)
-                
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
                 with st.spinner("Processing video..."):
                     output_path, joint_angles_df, frame_rate, detected = process_video(
-                        uploaded_file, analysis_id, confidence, progress_bar, status_text
+                        uploaded_file,
+                        analysis_id,
+                        confidence,
+                        st.session_state.pose_model_id,
+                        st.session_state.pose_device,
+                        progress_bar,
+                        status_text,
                     )
                 
                 progress_bar.empty()
@@ -491,7 +547,11 @@ def main():
             
             with st.spinner("Recording from webcam..."):
                 joint_angles_df, frame_rate = process_webcam(
-                    analysis_id, confidence, stop_placeholder
+                    analysis_id,
+                    confidence,
+                    st.session_state.pose_model_id,
+                    st.session_state.pose_device,
+                    stop_placeholder,
                 )
             
             if joint_angles_df is not None and not joint_angles_df.empty:
